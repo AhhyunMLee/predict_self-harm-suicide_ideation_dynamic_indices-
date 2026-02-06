@@ -19,7 +19,8 @@ library(slider)
 library(lubridate)
 library(TSEntropies)
 library(data.table)
-
+library(jsonlite)  
+library(bit64)
 
 
 ###### Data Cleaning ######
@@ -340,66 +341,187 @@ cat("\nWrote:", f
     
     
     
-    # --- load data  -- ####
+# --- load data  -- ####
     
-    setwd("/Users/ahhyun/Desktop/SI_Predction/Final")
+setwd("/Users/ahhyun/Desktop/SI_Predction/Final")
     
-    # acceleration <- fread("acceleration.csv") #taking too long to download # will work on it later
-    activity     <- fread("activity.csv")
-    battery      <- fread("battery.csv")
-    convo        <- fread("convo.csv")
-    ema_features <- fread("ema_features.csv")
-    gps          <- fread("gps.csv")
-    hr           <- fread("hr.csv") 
-    rr           <- fread("rr.csv") 
-    steps        <- fread("steps.csv")
-    stress       <- fread("stress.csv")
-    
-    # --- data cleaning --- ####
-    
-    colnames(ema_features) 
-    #  "mlife_id", "ema_time", "dt" (only indicated the one that I will use)
-    # change mlife_id to uid
-    # dt to ema_day
-    
-    # data inspection
-    View(activity) #v1, data[#,#], day (event base), uid
-    # delete v1 - done
-    # check out how to under stand data
-    View(convo) #v1, _id, event_data, event_data [start: #, end: #], event_time (event base), uid
-    # delete v1 - done
-    # delete _id
-    # change event_time to day
-    # extract start/end time of conversation
-    
-    View(battery) #v1, data[#], day (hourly), uid
-    # delete v1 - done
-    View(rr) # v1, data, day (every minutes), uid
-    # delete v1 - done
-    View(steps) #v1, data [#,#], day (every 30 seconds), uid
-    # delete v1 - done
-    # data [#,#]: make sure how to interpret
-    # day (why some of the data is in 1970?)
-    View(gps) #v1, data, day (every 15 mins), uid
-    # delete v1 - done
-    # data: extract altitude, longitude, accuracy, latitude, speed, bearing (what is it?)
-    View(hr) # data, day (every 10 seconds), uid
-    
-    
-    View(stress) #v1, data, day (mot periodic), uid
-    # delete v1 - done
-    # data: outlier for x?
-    # day (why some of the data is in 1970?)
-    
-    # 1. delete V1 data
-    dfs <- c("activity", "battery", "convo",
-             "gps", "hr", "rr", "steps", "stress")
-    
-    for (d in dfs) {
-      assign(
-        d,
-        get(d) %>% select(-any_of("V1"))
+# acceleration <- fread("acceleration.csv") #taking too long to download # will work on it later
+activity     <- fread("activity.csv")
+battery      <- fread("battery.csv")
+ema_features <- fread("ema_features.csv")
+gps          <- fread("gps.csv")
+hr           <- fread("hr.csv") 
+rr           <- fread("rr.csv") 
+steps        <- fread("steps.csv")
+stress       <- fread("stress.csv")
+convo        <- fread("convo.csv")
+sms          <- fread("smslog.csv")
+call         <- fread("calllog.csv")
+
+# --- data cleaning --- ####
+
+colnames(ema_features) 
+#  "mlife_id", "ema_time", "dt" (only indicated the one that I will use)
+#  change mlife_id to uid - done
+#  dt to ema_day - done
+
+# data inspection
+View(activity) #v1, data[#,#], day (event base), uid
+# delete v1 - done
+########## check out how to understand data
+#{'still': 0, 'unknown': 1, 'tilting': 2, 'on foot': 3, 'on bike': 4, 'in vehicle': 5, 'walking': 6, 'running': 7}
+View(convo) #v1, _id, event_data, event_data [start: #, end: #], event_time (event base), uid
+# delete v1 - done
+# delete _id - done
+# change event_time to day - done
+# extract start/end time of conversation - done
+View(gps) #v1, data, day (every 15 mins), uid
+# delete v1 - done
+# data: extract altitude, longitude, accuracy, latitude, speed, bearing (what is it?) - done
+View(hr) # data, day (every 10 seconds), uid
+View(battery) #v1, data[#], day (hourly), uid
+# delete v1 - done
+View(rr) # v1, data, day (every minutes), uid
+# delete v1 - done
+
+View(steps) #v1, data [#,#], day (every 30 seconds), uid
+# delete v1 - done
+########### data [#,#]: make sure how to interpret
+#[step count, duration, total steps, start time]
+
+# day (why some of the data is in 1970?) - drop
+View(stress) #v1, data, day (mot periodic), uid
+# delete v1 - done
+########### data: outlier for x - over 100?
+# day (why some of the data is in 1970?) drop
+
+# 1. delete V1 data
+dfs <- c("activity", "battery", "convo",
+         "gps", "hr", "rr", "steps", "stress")
+
+for (d in dfs) {
+  assign(
+    d,
+    get(d) %>% select(-any_of("V1"))
+  )
+}
+
+# 2. extract number from data 
+
+# Fix doubled quotes
+clean <- gsub('""', '"', gps$data)
+
+# Parse each row
+parsed <- lapply(clean, fromJSON)
+
+# Helper to safely extract (returns NA if missing)
+get_val <- function(x, name) if (!is.null(x[[name]])) x[[name]] else NA
+
+# Create new columns
+gps$altitude  <- sapply(parsed, get_val, "ALTITUDE")
+gps$longitude <- sapply(parsed, get_val, "LONGITUDE")
+gps$accuracy  <- sapply(parsed, get_val, "ACCURACY")
+gps$latitude  <- sapply(parsed, get_val, "LATITUDE")
+gps$speed     <- sapply(parsed, get_val, "SPEED")
+gps$bearing   <- sapply(parsed, get_val, "BEARING")
+
+View(gps)
+
+clean  <- gsub('""', '"', convo$event_data, fixed = TRUE)
+parsed <- lapply(clean, fromJSON, simplifyVector = FALSE)
+
+get_val <- function(x, name) {
+  v <- x[[name]]
+  if (is.null(v)) return(NA_character_)
+  as.character(v)   # <- key: keep as string
+}
+
+convo$start <- as.integer64(sapply(parsed, get_val, "CONVERSATION_START"))
+convo$end   <- as.integer64(sapply(parsed, get_val, "CONVERSATION_END"))
+View(convo)
+
+# change the column name
+# drop rows with odd day values (start with 1970)
+ema_features <- ema_features %>%
+  rename(uid = mlife_id) %>%
+  rename(ema_day = dt)
+colnames(ema_features) 
+
+convo <- convo %>%
+  rename(day = event_time) %>%
+  select(-"_id")
+
+steps <- steps %>%
+  dplyr::filter(lubridate::year(day) >= 2000)
+
+stress <- stress %>%
+  dplyr::filter(lubridate::year(day) >= 2000)
+
+# 3. Data calculation (Convo, SMS, Calls)
+# change the event based digital phenotype data to regular distribution
+
+# conversation
+View(Convo) #start(UTC) #end(UTC) #day
+convo$end_time <- as.POSIXct(as.numeric(convo$end) / 1000, origin = "1970-01-01", tz = "UTC")
+convo$start_time <- as.POSIXct(as.numeric(convo$start) / 1000, origin = "1970-01-01", tz = "UTC")
+View(convo)
+summary(convo) #found 1 NA values
+
+
+library(data.table)
+library(pbapply)
+library(parallel)
+
+library(data.table)
+library(pbapply)
+library(parallel)
+
+dt <- as.data.table(convo)
+dt[, `:=`(start_time = as.POSIXct(start_time),
+          end_time = as.POSIXct(end_time))]
+
+uid_list <- split(dt, by = "uid")
+
+# Set up cluster
+cl <- makeCluster(12)
+clusterEvalQ(cl, library(data.table))
+
+# Expand events with progress bar
+results <- pblapply(uid_list, function(x) {
+  tryCatch({
+    # Expand events
+    events <- rbindlist(lapply(1:nrow(x), function(i) {
+      if (x$start_time[i] >= x$end_time[i]) {
+        return(data.table(
+          uid = x$uid[i],
+          time = x$start_time[i],
+          event_source = x$event_source[i]
+        ))
+      }
+      data.table(
+        uid = x$uid[i],
+        time = seq(x$start_time[i], x$end_time[i], by = "1 sec"),
+        event_source = x$event_source[i]
       )
-    }
-    # 2. 
+    }))
     
+    # Create complete timeline with NAs for gaps
+    complete_timeline <- data.table(
+      uid = x$uid[1],
+      time = seq(min(events$time), max(events$time), by = "1 sec")
+    )
+    
+    # Merge to fill in event_source (NAs where no event)
+    result <- merge(complete_timeline, events, by = c("uid", "time"), all.x = TRUE)
+    
+    return(result)
+  }, error = function(e) {
+    data.table(uid = character(), time = as.POSIXct(character()), event_source = character())
+  })
+}, cl = cl)
+
+stopCluster(cl)
+
+# Combine results
+expanded_data <- rbindlist(results)
+expanded_data <- rbindlist(results)
