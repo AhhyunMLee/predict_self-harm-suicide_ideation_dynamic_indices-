@@ -335,7 +335,7 @@ if ("uid" %in% names(hr)) {
 
 # 10) Write output
 write.csv(hr, file.path(folder_path, "hr.csv"), row.names = FALSE)
-cat("\nWrote:", f
+
     
     
     
@@ -345,13 +345,13 @@ cat("\nWrote:", f
     
 setwd("/Users/ahhyun/Desktop/SI_Predction/Final")
     
-# acceleration <- fread("acceleration.csv") #taking too long to download # will work on it later
+acceleration <- fread("acceleration.csv") #taking too long to download # will work on it later
 activity     <- fread("activity.csv")
 battery      <- fread("battery.csv")
 ema_features <- fread("ema_features.csv")
 gps          <- fread("gps.csv")
 hr           <- fread("hr.csv") 
-rr           <- fread("rr.csv") 
+rr           <- fread("rr.csv") #?
 steps        <- fread("steps.csv")
 stress       <- fread("stress.csv")
 convo        <- fread("convo.csv")
@@ -406,8 +406,9 @@ for (d in dfs) {
   )
 }
 
-# 2. extract number from data 
+# 2. extract number from data  (gps, conv, step counts)
 
+# gps
 # Fix doubled quotes
 clean <- gsub('""', '"', gps$data)
 
@@ -427,6 +428,7 @@ gps$bearing   <- sapply(parsed, get_val, "BEARING")
 
 View(gps)
 
+# conv
 clean  <- gsub('""', '"', convo$event_data, fixed = TRUE)
 parsed <- lapply(clean, fromJSON, simplifyVector = FALSE)
 
@@ -451,77 +453,167 @@ convo <- convo %>%
   rename(day = event_time) %>%
   select(-"_id")
 
+# step counts 
+View(steps) #[step count, duration, total steps, start time] →only use the step count 
+steps_clean <- steps %>%
+  mutate(
+    step_count = as.numeric(str_extract(data, "(?<=\\[)[^,]+"))
+  ) %>%
+  select(uid, day, step_count)
+View(steps_clean)
+
+# drop rows with outlier (steps, stress - drop rows with 1970)
 steps <- steps %>%
   dplyr::filter(lubridate::year(day) >= 2000)
 
 stress <- stress %>%
   dplyr::filter(lubridate::year(day) >= 2000)
 
-# 3. Data calculation (Convo, SMS, Calls)
+
+
+# 3. Data calculation (1): event based timing -> every 10 mins (Convo, SMS, Calls, steps) #######
 # change the event based digital phenotype data to regular distribution
 
 # conversation
-View(Convo) #start(UTC) #end(UTC) #day
+View(convo) #start(UTC) #end(UTC) #day
+# change to UTC
 convo$end_time <- as.POSIXct(as.numeric(convo$end) / 1000, origin = "1970-01-01", tz = "UTC")
 convo$start_time <- as.POSIXct(as.numeric(convo$start) / 1000, origin = "1970-01-01", tz = "UTC")
-View(convo)
-summary(convo) #found 1 NA values
-
+summary(convo)
 
 library(data.table)
-library(pbapply)
 library(parallel)
 
-library(data.table)
-library(pbapply)
-library(parallel)
+# The following code is adapted from:
+# https://stackoverflow.com/questions/57245771/how-do-i-fill-time-sequence-based-on-start-and-end-time-in-r
 
-dt <- as.data.table(convo)
-dt[, `:=`(start_time = as.POSIXct(start_time),
-          end_time = as.POSIXct(end_time))]
+# seq.POSIXt() creates a sequence of times (e.g., 2021-10-25 17:17:01 CEST, 2021-10-25 17:17:02 CEST, 2021-10-25 17:17:03 CEST). This function is vectorized, which means that it is directly performed on the whole vector (= column).
+vec_seq <- Vectorize(seq.POSIXt, vectorize.args = c("from", "to"))
 
-uid_list <- split(dt, by = "uid")
+library(dplyr)
+library(lubridate)
 
-# Set up cluster
-cl <- makeCluster(12)
-clusterEvalQ(cl, library(data.table))
+convo_per10min <- convo %>%
+  # First create per-minute data
+  group_by(uid) %>%
+  reframe(
+    Date = seq.POSIXt(min(start_time), max(end_time), by = "1 min")
+  ) %>%
+  left_join(
+    convo %>% 
+      mutate(Date = map2(start_time, end_time, ~seq.POSIXt(.x, .y, by = "1 min"))) %>%
+      unnest(Date) %>%
+      mutate(on_phone = 1) %>%  # Mark as on phone
+      select(uid, Date, on_phone),
+    by = c("uid", "Date")
+  ) %>%
+  # Replace NA with 0
+  mutate(on_phone = ifelse(is.na(on_phone), 0, 1)) %>%
+  # Create 10-minute bins and count
+  mutate(time_bin = floor_date(Date, "10 minutes")) %>%
+  group_by(uid, time_bin) %>%
+  summarise(data = sum(on_phone), .groups = "drop")
 
-# Expand events with progress bar
-results <- pblapply(uid_list, function(x) {
-  tryCatch({
-    # Expand events
-    events <- rbindlist(lapply(1:nrow(x), function(i) {
-      if (x$start_time[i] >= x$end_time[i]) {
-        return(data.table(
-          uid = x$uid[i],
-          time = x$start_time[i],
-          event_source = x$event_source[i]
-        ))
-      }
-      data.table(
-        uid = x$uid[i],
-        time = seq(x$start_time[i], x$end_time[i], by = "1 sec"),
-        event_source = x$event_source[i]
-      )
-    }))
-    
-    # Create complete timeline with NAs for gaps
-    complete_timeline <- data.table(
-      uid = x$uid[1],
-      time = seq(min(events$time), max(events$time), by = "1 sec")
+View(convo_per10min)
+summary(convo_per10min)
+hist(convo_per10min$data)
+
+# SMS
+View(sms)
+
+sms_per10min <- sms %>%
+  # First create complete 10-minute sequence for each uid
+  group_by(uid) %>%
+  reframe(
+    time_bin = seq.POSIXt(
+      floor_date(min(time), "10 minutes"),  # Start at first 10-min mark
+      floor_date(max(time), "10 minutes"),  # End at last 10-min mark
+      by = "10 min"
     )
-    
-    # Merge to fill in event_source (NAs where no event)
-    result <- merge(complete_timeline, events, by = c("uid", "time"), all.x = TRUE)
-    
-    return(result)
-  }, error = function(e) {
-    data.table(uid = character(), time = as.POSIXct(character()), event_source = character())
-  })
-}, cl = cl)
+  ) %>%
+  # Join with actual SMS data aggregated by 10-minute bins
+  left_join(
+    sms %>%
+      mutate(time_bin = floor_date(time, "10 minutes")) %>%
+      group_by(uid, time_bin) %>%
+      summarise(total_body_length = sum(body_len, na.rm = TRUE), .groups = "drop"),
+    by = c("uid", "time_bin")
+  ) %>%
+  # Replace NA with 0 (no messages in that window)
+  mutate(total_body_length = ifelse(is.na(total_body_length), 0, total_body_length))
 
-stopCluster(cl)
+View(sms_per10min)
 
-# Combine results
-expanded_data <- rbindlist(results)
-expanded_data <- rbindlist(results)
+#call
+View(call)
+
+call_per10min <- call %>%
+  # First create complete 10-minute sequence for each uid
+  group_by(uid) %>%
+  reframe(
+    time_bin = seq.POSIXt(
+      floor_date(min(time), "10 minutes"),  # Start at first 10-min mark
+      floor_date(max(time), "10 minutes"),  # End at last 10-min mark
+      by = "10 min"
+    )
+  ) %>%
+  # Join with actual call data aggregated by 10-minute bins
+  left_join(
+    call %>%
+      mutate(time_bin = floor_date(time, "10 minutes")) %>%
+      group_by(uid, time_bin) %>%
+      summarise(total_duration = sum(duration, na.rm = TRUE), .groups = "drop"),
+    by = c("uid", "time_bin")
+  ) %>%
+  # Replace NA with 0 (no calls in that window)
+  mutate(total_duration = ifelse(is.na(total_duration), 0, total_duration))
+
+View(call_per10min)
+
+# steps
+steps_per10min <- steps_clean %>%
+  # Create complete 10-minute sequence for each uid
+  group_by(uid) %>%
+  reframe(
+    time_bin = seq.POSIXt(
+      floor_date(min(day), "10 minutes"),
+      floor_date(max(day), "10 minutes"),
+      by = "10 min"
+    )
+  ) %>%
+  # Join with actual step data aggregated by 10-minute bins
+  left_join(
+    steps_clean %>%
+      mutate(time_bin = floor_date(day, "10 minutes")) %>%
+      group_by(uid, time_bin) %>%
+      summarise(total_step_count = sum(step_count, na.rm = TRUE), .groups = "drop"),
+    by = c("uid", "time_bin")
+  ) %>%
+  # Replace NA with 0 (no steps in that window)
+  mutate(total_step_count = ifelse(is.na(total_step_count), 0, total_step_count))
+
+View(steps_per10min)
+
+# 3. Data calculation: time-based data (accelerator, GPS)
+
+#gps 
+# interval: between 10 mins to 15 mins, distance as meter
+# Calculate distance between consecutive GPS points
+gps_movement <- gps %>%
+  arrange(uid, day) %>%
+  group_by(uid) %>%
+  mutate(
+    # Calculate distance from previous point (in meters)
+    distance_m = distHaversine(
+      cbind(lag(longitude), lag(latitude)),
+      cbind(longitude, latitude)
+    ),
+    # Time difference from previous point (in minutes)
+    time_diff_min = as.numeric(difftime(day, lag(day), units = "mins")),
+    # Set first point distance to 0
+    distance_m = ifelse(is.na(distance_m), 0, distance_m)
+  ) %>%
+  ungroup()
+View(gps_movement)# 
+
+View(stress)
