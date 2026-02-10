@@ -717,4 +717,4 @@ source("step_ALL_windows_12cores.R")
 source("hr_TIMED_14cores_500pts.R")
 
 # accel
-source("accel_ALL_windows_12cores.R")
+source("accel_TIMED_14cores_500pts.R")
