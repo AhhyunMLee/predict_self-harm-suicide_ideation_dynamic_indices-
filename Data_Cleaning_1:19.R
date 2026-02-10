@@ -655,8 +655,9 @@ cat("\n=== Data Processing Complete ===\n")
 # print(head(hr),5) #data, day, uid
 
 # step (didn't calculate entropy for 1 hr window due to the lack of data)
-source("step_ALL_windows_12cores.R")
+source("step_TIMED_ema_based.R")
 
+source("simple_1h_test.R")
 # Summary Statistics:
 #   step_mean_1h       step_mad_1h       step_p90p10_1h    
 # Min.   :    0.00   Min.   :    0.00   Min.   :    0.00  
@@ -717,4 +718,7 @@ source("step_ALL_windows_12cores.R")
 source("hr_TIMED_14cores_500pts.R")
 
 # accel
-source("accel_TIMED_14cores_500pts.R")
+source("accel_ALL_METRICS_FINAL.R")
+
+
+
