@@ -657,8 +657,51 @@ cat("\n=== Data Processing Complete ===\n")
 # step (didn't calculate entropy for 1 hr window due to the lack of data)
 source("step_ALL_windows_12cores.R")
 
+# Summary Statistics:
+#   step_mean_1h       step_mad_1h       step_p90p10_1h    
+# Min.   :    0.00   Min.   :    0.00   Min.   :    0.00  
+# 1st Qu.:    0.00   1st Qu.:    0.00   1st Qu.:    0.00  
+# Median :    3.50   Median :    0.00   Median :   10.50  
+# Mean   :   26.22   Mean   :   14.99   Mean   :   53.16  
+# 3rd Qu.:   28.67   3rd Qu.:   12.60   3rd Qu.:   68.00  
+# Max.   :15265.00   Max.   :11315.94   Max.   :12212.00  
+# NA's   :7248       NA's   :7550       NA's   :7852      
+#   step_mean_4h        step_mad_4h       step_p90p10_4h    
+#  Min.   :0.000e+00   Min.   :    0.00   Min.   :    0.00  
+#  1st Qu.:9.167e-01   1st Qu.:    0.00   1st Qu.:    0.00  
+#  Median :1.038e+01   Median :    0.00   Median :   30.70  
+#  Mean   :2.631e+01   Mean   :   10.92   Mean   :   72.07  
+#  3rd Qu.:3.438e+01   3rd Qu.:    0.00   3rd Qu.:   98.30  
+#  Max.   :1.526e+04   Max.   :11315.94   Max.   :12212.00  
+#  NA's   :7248        NA's   :7550       NA's   :7852      
+# step_entropy_4h   step_mean_1d       step_mad_1d       
+# Min.   :0.0000   Min.   :    0.00   Min.   :    0.000  
+# 1st Qu.:0.2499   1st Qu.:   10.69   1st Qu.:    0.000  
+# Median :1.2220   Median :   21.13   Median :    0.000  
+# Mean   :1.5341   Mean   :   26.44   Mean   :    1.136  
+# 3rd Qu.:2.5806   3rd Qu.:   36.04   3rd Qu.:    0.000  
+# Max.   :4.5850   Max.   :15265.00   Max.   :11315.944  
+# NA's   :7852     NA's   :7248       NA's   :7550       
+#  step_p90p10_1d     step_entropy_1d  step_mean_7d     
+#  Min.   :    0.00   Min.   :0.000   Min.   :    0.00  
+#  1st Qu.:   31.90   1st Qu.:1.611   1st Qu.:   14.03  
+#  Median :   66.70   Median :2.327   Median :   23.24  
+#  Mean   :   80.68   Mean   :2.248   Mean   :   26.56  
+#  3rd Qu.:  110.70   3rd Qu.:2.990   3rd Qu.:   35.47  
+#  Max.   :12212.00   Max.   :5.987   Max.   :15265.00  
+#  NA's   :7852       NA's   :8456    NA's   :7248      
+# step_mad_7d        step_p90p10_7d     step_entropy_7d
+# Min.   :0.000e+00   Min.   :    0.00   Min.   :0.000  
+# 1st Qu.:0.000e+00   1st Qu.:   41.30   1st Qu.:2.121  
+# Median :0.000e+00   Median :   72.30   Median :2.806  
+# Mean   :2.238e-01   Mean   :   79.98   Mean   :2.720  
+# 3rd Qu.:0.000e+00   3rd Qu.:  108.30   3rd Qu.:3.440  
+# Max.   :1.132e+04   Max.   :12212.00   Max.   :5.987  
+# NA's   :7550        NA's   :7852       NA's   :9966 
+
 # hr
 source("hr_ALL_windows_12cores.R")
 
 # accel
 source("accel_ALL_windows_12cores.R")
+View()
