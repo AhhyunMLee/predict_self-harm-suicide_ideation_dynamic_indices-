@@ -51,29 +51,22 @@ ema <- read.csv("3._TD_cohort_EMA_FINAL.csv")
 
 ema_selected <- ema %>%
   select(
-    mlife_id, compliance, date_rep, ema_time, ema_timestamp,
+    mlife_id, compliance, date_rep, ema_time, ema_timestamp,RespTime_12, 
     starts_with("PHQ."), starts_with("GAD.")
   ) %>%
   # Rename PHQ.# to q# and GAD.# to g#
   rename_with(~ str_replace(.x, "^PHQ\\.", "q"), starts_with("PHQ.")) %>%
-  rename_with(~ str_replace(.x, "^GAD\\.", "g"), starts_with("GAD."))
-
-## 2.2 Fix Timestamp Format ----
-ema_selected <- ema_selected %>%
+  rename_with(~ str_replace(.x, "^GAD\\.", "g"), starts_with("GAD.")) %>%
   mutate(
-    ema_ts_chr = as.character(ema_timestamp),
-    ema_hm = str_extract(ema_ts_chr, "\\b\\d{1,2}:\\d{1,2}\\b"),
-    ema_timestamp_hhmm = if_else(
-      !is.na(ema_hm),
-      sprintf("%02d:%02d",
-              as.integer(sub(":.*", "", ema_hm)),
-              as.integer(sub(".*:", "", ema_hm))),
-      NA_character_
-    )
-  ) %>%
-  select(-ema_ts_chr, -ema_hm, -ema_timestamp)
+    # Extract first number from RespTime_0
+    first_timestamp = str_extract(as.character(RespTime_12), "(?<=;)[0-9.]+"),
+    
+    # Convert Unix timestamp to datetime
+    ema_day = as.POSIXct(as.numeric(first_timestamp), 
+                         origin = "1970-01-01", tz = "UTC")
+  )
 
-## 2.3 Fill Missing EMA Timepoints ----
+## 2.2 Fill Missing EMA Timepoints ----
 # Parse dates
 ema_selected$date_rep <- as.Date(ema_selected$date_rep, format = "%m/%d/%Y")
 
@@ -127,7 +120,7 @@ ema_complete$compliance <- ifelse(
   ema_complete$compliance
 )
 
-## 2.4 Create DateTime Column ----
+## 2.3 Create DateTime Column ----
 ema_complete <- ema_complete %>%
   mutate(
     ema_time = factor(ema_time, levels = ema_levels, ordered = TRUE),
@@ -138,7 +131,7 @@ ema_complete <- ema_complete %>%
   select(-date_rep, -ema_timestamp_hhmm) %>%
   rename(uid = mlife_id, ema_day = dt)
 
-## 2.5 Calculate Dynamic Features ----
+## 2.4 Calculate Dynamic Features ----
 
 # Helper functions
 set_entropy <- function(x, min_n = 2) {
@@ -158,7 +151,7 @@ p90_p10 <- function(x) {
 vars <- c(paste0("q", 1:9), "g1", "g2")
 
 ema_features <- ema_complete %>%
-  group_by(uid) %>%
+  group_by(mlife_id) %>%
   mutate(
     across(
       all_of(vars),
@@ -674,7 +667,11 @@ print(head(hr),5) #data, day, uid
 
 #found out that ema_time step is wrong!
 # merge with original data to get the right time stamp!
+source("fix_ema_timestamps.R")
 
+ema_final_selected <- ema_final %>%
+  select(mlife_id, ema_day, ema_time)
+View(ema_final_selected)
 
 # step (didn't calculate entropy for 1 hr window due to the lack of data)
 source("step_ALL_windows_12cores.R")
