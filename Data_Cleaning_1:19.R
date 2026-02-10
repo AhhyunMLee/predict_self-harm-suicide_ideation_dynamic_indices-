@@ -732,3 +732,60 @@ source("accel_PARALLEL.R")
 
 source("accel_ENTROPY_ONLY_OPTION_A.R")
 
+# TO MERGE WITH EXISTING FEATURES:
+library(data.table)
+
+cat("\nMERGING ALL FEATURES...\n\n")
+
+# Load base
+features <- fread('accel_all_features.csv')
+features <- unique(features, by = c('uid', 'ema_day'))  # Remove duplicates
+cat("1. Loaded accel features:", nrow(features), "rows\n")
+
+# Merge accel entropy
+ent_1h <- fread('accel_entropy_1h.csv')
+ent_1h <- unique(ent_1h, by = c('uid', 'ema_day'))
+features <- merge(features, ent_1h, by = c('uid', 'ema_day'), all.x = TRUE)
+
+ent_4h <- fread('accel_entropy_4h.csv')
+ent_4h <- unique(ent_4h, by = c('uid', 'ema_day'))
+features <- merge(features, ent_4h, by = c('uid', 'ema_day'), all.x = TRUE)
+
+ent_1d <- fread('accel_entropy_1d.csv')
+ent_1d <- unique(ent_1d, by = c('uid', 'ema_day'))
+features <- merge(features, ent_1d, by = c('uid', 'ema_day'), all.x = TRUE)
+
+ent_7d <- fread('accel_entropy_7d.csv')
+ent_7d <- unique(ent_7d, by = c('uid', 'ema_day'))
+features <- merge(features, ent_7d, by = c('uid', 'ema_day'), all.x = TRUE)
+cat("2. Merged accel entropy:", ncol(features), "columns\n")
+
+# Merge EMA
+ema <- fread('ema_features.csv')
+setnames(ema, "mlife_id", "uid")
+ema[, ema_day := as.POSIXct(ema_day, tz = "UTC")]
+ema <- unique(ema, by = c('uid', 'ema_day'))
+features <- merge(features, ema, by = c('uid', 'ema_day'), all.x = TRUE)
+cat("3. Merged EMA:", ncol(features), "columns\n")
+
+# Merge HR
+hr <- fread('hr_all_windows_all_metrics.csv')
+setnames(hr, "ema_time", "ema_day")
+hr[, ema_day := as.POSIXct(ema_day, tz = "UTC")]
+hr <- unique(hr, by = c('uid', 'ema_day'))
+features <- merge(features, hr, by = c('uid', 'ema_day'), all.x = TRUE)
+cat("4. Merged HR:", ncol(features), "columns\n")
+
+# Merge steps
+steps <- fread('step_all_windows_ema_based.csv')
+if ("mlife_id" %in% names(steps)) setnames(steps, "mlife_id", "uid")
+steps[, ema_day := as.POSIXct(ema_day, tz = "UTC")]
+steps <- unique(steps, by = c('uid', 'ema_day'))
+features <- merge(features, steps, by = c('uid', 'ema_day'), all.x = TRUE)
+cat("5. Merged steps:", ncol(features), "columns\n")
+
+# Save
+fwrite(features, 'all_features_combined.csv')
+cat("\n✓ DONE! Saved to: all_features_combined.csv\n")
+cat("  Rows:", nrow(features), "\n")
+cat("  Columns:", ncol(features), "\n\n")
