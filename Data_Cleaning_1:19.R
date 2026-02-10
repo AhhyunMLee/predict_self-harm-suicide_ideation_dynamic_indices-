@@ -661,8 +661,26 @@ cat("\n=== Data Processing Complete ===\n")
 # step counts, accelerator, heart rate
 setwd("/Users/ahhyun/Desktop/SI_Predction/Final")
 ema <- fread("ema_features.csv")
-step <- fread("steps.csv")
-accel <- fread("accel.csv")
+ema_time <- fread("3._TD_cohort_EMA_FINAL.csv")
+step <- fread("steps_clean.csv")
+accel <- fread("accel_clean.csv")
 hr <- fread("hr.csv")
 
+print(head(ema),5) #mlife_id, dt
+print(head(step),5) #v1, total_step_count, time_bin, uid
+print(head(accel),5) #data, day magnnitude
+print(head(hr),5) #data, day, uid
 
+
+#found out that ema_time step is wrong!
+# merge with original data to get the right time stamp!
+
+
+# step (didn't calculate entropy for 1 hr window due to the lack of data)
+source("step_ALL_windows_12cores.R")
+
+# hr
+source("hr_ALL_windows_12cores.R")
+
+# accel
+source("accel_ALL_windows_12cores.R")
