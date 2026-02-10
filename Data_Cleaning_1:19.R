@@ -718,7 +718,17 @@ source("simple_1h_test.R")
 source("hr_TIMED_14cores_500pts.R")
 
 # accel
-source("accel_ALL_METRICS_FINAL.R")
+
+source("accel_PARALLEL.R")
+
+#entropy 
+# sampling for efficiency
+# Window   Points Available   Need for 99%        Recommended Setting
+# 1h       720                All 720             Inf (use all)
+# 4h       2,880              ~500–1,000          1,000
+# 1d       17,280              ~2,000–3,000        3,000
+# 7d       120,960             ~10,000–15,000      15,000
 
 
+source("accel_ENTROPY_ONLY_OPTION_A.R")
 
