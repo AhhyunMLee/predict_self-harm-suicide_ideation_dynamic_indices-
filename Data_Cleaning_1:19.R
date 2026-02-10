@@ -714,9 +714,7 @@ source("step_ALL_windows_12cores.R")
 # TOTAL WITHOUT PARALLELIZATION: ~19,443 hours = 810 days (!!)
 
 # used MAX entropy point = 500
-source("hr_ALL_windows_12cores.R")
-
-source("test_single_pt_500_13cores.R")
+source("hr_TIMED_14cores_500pts.R")
 
 # accel
 source("accel_ALL_windows_12cores.R")
