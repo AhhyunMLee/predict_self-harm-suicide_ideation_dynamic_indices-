@@ -649,23 +649,10 @@ cat("\n=== Data Processing Complete ===\n")
 #.            & calculate the dynamic indices
 # =============================================================================
 
-# load data 
-# start with digital phenotype with granular time points
-# step counts, accelerator, heart rate
-setwd("/Users/ahhyun/Desktop/SI_Predction/Final")
-ema <- fread("ema_features.csv")
-step <- fread("steps_clean.csv")
-accel <- fread("accel_clean.csv")
-hr <- fread("hr.csv")
-
 # print(head(ema),5) #mlife_id, dt
 # print(head(step),5) #v1, total_step_count, time_bin, uid
 # print(head(accel),5) #data, day magnnitude
 # print(head(hr),5) #data, day, uid
-
-# ema_final_selected <- ema_final %>%
-#   select(mlife_id, ema_day, ema_time)
-# View(ema_final_selected)
 
 # step (didn't calculate entropy for 1 hr window due to the lack of data)
 source("step_ALL_windows_12cores.R")
