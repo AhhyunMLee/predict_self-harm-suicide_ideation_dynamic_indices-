@@ -700,8 +700,23 @@ source("step_ALL_windows_12cores.R")
 # NA's   :7550        NA's   :7852       NA's   :9966 
 
 # hr
+# 1h window:  75,200 × 0.05 sec  = 3,760 sec    = 1.0 hour
+# 4h window:  75,200 × 0.8 sec   = 60,160 sec   = 16.7 hours
+# 1d window:  75,200 × 30 sec    = 2,256,000 sec = 626.7 hours
+# 7d window:  75,200 × 15 min    = 67,680,000 sec = 18,800 hours (!)
+
+# Observations per window:
+# 1h: total=6281681, avg=83.5
+# 4h: total=25086445, avg=333.4
+# 1d: total=149993118, avg=1993.5
+# 7d: total=1005739441, avg=13367.1
+
+# TOTAL WITHOUT PARALLELIZATION: ~19,443 hours = 810 days (!!)
+
+# used MAX entropy point = 500
 source("hr_ALL_windows_12cores.R")
+
+source("test_single_pt_500_13cores.R")
 
 # accel
 source("accel_ALL_windows_12cores.R")
-View()
